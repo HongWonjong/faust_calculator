@@ -1,50 +1,44 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/story.dart';
 import '../models/part.dart';
+import '../services/firestore_service.dart';
 
 class StoryRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirestoreService _firestoreService;
+
+  StoryRepository(this._firestoreService);
 
   Stream<List<Story>> getStories(String userId) {
-    return _firestore
-        .collection('Users')
-        .doc(userId)
-        .collection('Stories')
-        .snapshots()
+    return _firestoreService
+        .collectionStream('Users/$userId/Stories')
         .map((snapshot) =>
         snapshot.docs.map((doc) => Story.fromFirestore(doc)).toList());
   }
 
   Future<void> addStory(String userId, Story story) async {
-    await _firestore
-        .collection('Users')
-        .doc(userId)
-        .collection('Stories')
-        .doc(story.id)
-        .set(story.toFirestore());
+    await _firestoreService.setDocument(
+      'Users/$userId/Stories',
+      story.id,
+      story.toFirestore(),
+    );
   }
 
-
   Stream<List<Part>> getParts(String userId, String storyId) {
-    return _firestore
-        .collection('Users')
-        .doc(userId)
-        .collection('Stories')
-        .doc(storyId)
-        .collection('Parts')
-        .snapshots()
+    return _firestoreService
+        .collectionStream('Users/$userId/Stories/$storyId/Parts')
         .map((snapshot) =>
         snapshot.docs.map((doc) => Part.fromFirestore(doc)).toList());
   }
 
   Future<void> addPart(String userId, String storyId, Part part) async {
-    await _firestore
-        .collection('Users')
-        .doc(userId)
-        .collection('Stories')
-        .doc(storyId)
-        .collection('Parts')
-        .doc(part.id)
-        .set(part.toFirestore());
+    await _firestoreService.setDocument(
+      'Users/$userId/Stories/$storyId/Parts',
+      part.id,
+      part.toFirestore(),
+    );
   }
 }
+
+final storyRepositoryProvider = Provider((ref) {
+  return StoryRepository(ref.watch(firestoreServiceProvider));
+});

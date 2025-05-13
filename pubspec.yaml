@@ -11,14 +11,25 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.6.1
   cloud_firestore: ^5.6.7
+  cloud_firestore_web: ^4.4.7
   firebase_core: ^3.13.0
+  firebase_core_web: ^2.22.0
   firebase_auth: ^5.5.3
+  firebase_auth_web: ^5.14.2
+  firebase_storage: ^12.4.5
+  flutter_dotenv: ^5.2.1
+  firebase_storage_web: ^3.10.12
+  google_sign_in: ^6.3.0
+  google_sign_in_web: ^0.12.4+4
   pdf: ^3.11.3
   http: ^1.4.0
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
 flutter:
+  assets:
+    - .env
   uses-material-design: true

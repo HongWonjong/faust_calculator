@@ -4,9 +4,9 @@ import '../models/story.dart';
 import '../models/part.dart';
 import '../repository/story_repository.dart';
 import '../services/ai_service.dart';
+import '../services/firestore_service.dart';
 
-final storyRepositoryProvider = Provider((ref) => StoryRepository());
-final aiServiceProvider = Provider((ref) => AIService());
+final storyRepositoryProvider = Provider((ref) => StoryRepository(ref.watch(firestoreServiceProvider)));final aiServiceProvider = Provider((ref) => AIService());
 
 final storiesProvider = StreamProvider.family<List<Story>, String>((ref, userId) {
   return ref.watch(storyRepositoryProvider).getStories(userId);
