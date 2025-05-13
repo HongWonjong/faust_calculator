@@ -1,7 +1,8 @@
+import 'dart:developer';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 추가: DotEnv 패키지
 import 'screens/main_dashboard.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
@@ -9,9 +10,6 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // .env 파일 로드
-  await dotenv.load(fileName: "web/.env");
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

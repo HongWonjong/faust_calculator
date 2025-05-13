@@ -4,8 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
 import '../viewmodel/story_view_model.dart'; // 추가: DotEnv 패키지
 
 final authServiceProvider = StateNotifierProvider<AuthService, User?>((ref) {
@@ -19,7 +17,7 @@ class AuthService extends StateNotifier<User?> {
 
   AuthService(this._ref)
       : _googleSignIn = GoogleSignIn(
-    clientId: dotenv.env['GOOGLE_CLIENT_ID'] ?? '',
+    clientId: '174839303003-ntfa4g52f5f6601oq7p1apa3dem9mg62.apps.googleusercontent.com',
     scopes: ['email'],
   ),
         super(FirebaseAuth.instance.currentUser);
