@@ -19,7 +19,6 @@ dependencies:
   firebase_storage: ^12.4.5
   firebase_storage_web: ^3.10.12
   google_sign_in: ^6.3.0
-  google_sign_in_web: ^0.12.4+4
   pdf: ^3.11.3
   http: ^1.4.0
 

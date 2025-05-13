@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../viewmodel/story_view_model.dart'; // 추가: DotEnv 패키지
+import '../viewmodel/story_view_model.dart';
 
 final authServiceProvider = StateNotifierProvider<AuthService, User?>((ref) {
   return AuthService(ref);
@@ -18,7 +18,7 @@ class AuthService extends StateNotifier<User?> {
   AuthService(this._ref)
       : _googleSignIn = GoogleSignIn(
     clientId: '174839303003-ntfa4g52f5f6601oq7p1apa3dem9mg62.apps.googleusercontent.com',
-    scopes: ['email'],
+    scopes: ['email', 'profile'],
   ),
         super(FirebaseAuth.instance.currentUser);
 
@@ -26,7 +26,7 @@ class AuthService extends StateNotifier<User?> {
     try {
       log('Initializing Google Sign-In with clientId: ${_googleSignIn.clientId}');
       if (_googleSignIn.clientId == null || _googleSignIn.clientId!.isEmpty) {
-        throw Exception('Google Sign-In 클라이언트 ID가 설정되지 않았습니다. 환경 변수를 확인하세요.');
+        throw Exception('Google Sign-In 클라이언트 ID가 설정되지 않았습니다.');
       }
 
       final isSignedIn = await _googleSignIn.isSignedIn();
@@ -34,10 +34,10 @@ class AuthService extends StateNotifier<User?> {
 
       if (isSignedIn) {
         googleUser = await _googleSignIn.signInSilently();
-        log('기존 계정으로 자동 로그인 시도');
+        log('기존 계정으로 자동 로그인 시도: user=${googleUser?.email}');
       } else {
         googleUser = await _googleSignIn.signIn();
-        log('로그인 창 표시됨');
+        log('로그인 창 표시됨: user=${googleUser?.email}');
       }
 
       if (googleUser == null) {
@@ -54,8 +54,16 @@ class AuthService extends StateNotifier<User?> {
 
       if (accessToken == null || idToken == null) {
         log('Google auth tokens are null: accessToken=$accessToken, idToken=$idToken');
+        log('User details: email=${googleUser.email}, displayName=${googleUser.displayName}, id=${googleUser.id}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google 인증 토큰을 가져오지 못했습니다.')),
+          SnackBar(
+            content: Text(
+              'Google 인증 토큰을 가져오지 못했습니다.\n'
+                  '1. 로그인 팝업에서 모든 권한에 동의했는지 확인하세요.\n'
+                  '2. 네트워크 연결 상태를 점검하세요.\n'
+                  '3. 다시 시도해 보세요.',
+            ),
+          ),
         );
         return;
       }
@@ -64,10 +72,17 @@ class AuthService extends StateNotifier<User?> {
         accessToken: accessToken,
         idToken: idToken,
       );
-      await _auth.signInWithCredential(credential);
-      state = _auth.currentUser;
-
-      log('로그인 성공: ${state?.email}');
+      try {
+        await _auth.signInWithCredential(credential);
+        state = _auth.currentUser;
+        log('Firebase 로그인 성공: ${state?.email}, uid=${state?.uid}');
+      } catch (firebaseError) {
+        log('Firebase 인증 실패: $firebaseError');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Firebase 인증 실패: $firebaseError')),
+        );
+        return;
+      }
 
       // Firestore에서 사용자 데이터 확인
       final uid = state!.uid;
@@ -93,6 +108,7 @@ class AuthService extends StateNotifier<User?> {
   Future<void> signOut() async {
     try {
       await _googleSignIn.disconnect();
+      log('Google Sign-In 세션 해지');
     } catch (_) {}
     await _googleSignIn.signOut();
     await _auth.signOut();
