@@ -5,6 +5,7 @@
 *.swp
 .DS_Store
 .atom/
+/lib/firebase_options.dart
 .build/
 .buildlog/
 .history
