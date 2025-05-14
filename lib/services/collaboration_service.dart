@@ -6,7 +6,7 @@ class CollaborationService {
   Future<void> addCollaborator(
       String userId, String storyId, String collaboratorId) async {
     await _firestore
-        .collection('Users')
+        .collection('users')
         .doc(userId)
         .collection('Stories')
         .doc(storyId)
@@ -17,7 +17,7 @@ class CollaborationService {
 
   Stream<List<String>> getCollaborators(String userId, String storyId) {
     return _firestore
-        .collection('Users')
+        .collection('users')
         .doc(userId)
         .collection('Stories')
         .doc(storyId)
