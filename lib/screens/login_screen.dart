@@ -1,10 +1,15 @@
-import 'dart:math';
+import 'dart:developer';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/auth_service.dart';
 import '../theme/style.dart';
+import '../widgets/sparkle_background_painter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
+  const LoginScreen({super.key});
+
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -16,11 +21,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
   late Animation<Offset> _slideAnimation;
   late Animation<double> _sparkleAnimation;
   bool _isLoading = false;
+  bool _isInitialized = false;
+  late GoogleSignIn _googleSignIn;
 
   @override
   void initState() {
     super.initState();
-    // 메인 애니메이션 컨트롤러
     _controller = AnimationController(
       duration: AppStyles.animationDuration,
       vsync: this,
@@ -28,11 +34,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: AppStyles.animationCurve),
     );
-    _slideAnimation = Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero).animate(
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
       CurvedAnimation(parent: _controller, curve: AppStyles.animationCurve),
     );
 
-    // 반짝임 애니메이션 컨트롤러
     _sparkleController = AnimationController(
       duration: AppStyles.sparkleDuration,
       vsync: this,
@@ -42,6 +47,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
     );
 
     _controller.forward();
+
+    if (kIsWeb) {
+      _googleSignIn = GoogleSignIn(
+        clientId: '174839303003-huddi6sn9b16o8cs2l8ed3m6e0uomc7l.apps.googleusercontent.com',
+        scopes: ['email', 'profile'],
+      );
+      _initializeGoogleSignIn();
+    }
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    try {
+      log('Initializing Google Sign-In');
+      await _googleSignIn.signInSilently();
+      log('Google Sign-In initialized');
+      setState(() => _isInitialized = true);
+    } catch (e) {
+      log('Google Sign-In initialization error: $e');
+      setState(() => _isInitialized = true); // 초기화 실패해도 버튼 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('초기화 오류: $e')),
+      );
+    }
+  }
+
+  Future<void> _handleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      log('Starting Google Sign-In');
+      final user = await _googleSignIn.signIn();
+      log('Google Sign-In completed: user=${user?.email}');
+      await ref.read(authServiceProvider.notifier).signInWithGoogle(context, user);
+    } catch (e) {
+      log('Sign-in error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('로그인 실패: $e')),
+      );
+      if (e.toString().contains('popup')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('브라우저의 팝업 차단을 해제하고 다시 시도하세요.')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -56,9 +106,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
     return Scaffold(
       body: Stack(
         children: [
-          // 배경
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: AppStyles.backgroundGradient,
             ),
             child: AnimatedBuilder(
@@ -71,7 +120,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
               },
             ),
           ),
-          // 메인 콘텐츠
           Center(
             child: SingleChildScrollView(
               padding: AppStyles.pagePadding,
@@ -91,23 +139,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
                     elevation: 0,
                     child: Container(
                       padding: AppStyles.cardPadding,
-                      constraints: BoxConstraints(maxWidth: 450),
+                      constraints: const BoxConstraints(maxWidth: 450),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // 로고
                           Text(
                             '파우스트의 계산기',
                             style: AppStyles.headline.copyWith(
                               fontSize: 40,
-                              shadows: [
-                                AppStyles.neonGlowShadow,
-                              ],
+                              shadows: [AppStyles.neonGlowShadow],
                             ),
                             textAlign: TextAlign.center,
                           ),
-                          SizedBox(height: 20),
-                          // 디테일한 소개 텍스트
+                          const SizedBox(height: 20),
                           Text(
                             '파우스트의 계산기는 당신의 창작을 위한 궁극의 도구입니다.\n'
                                 '복잡한 스토리를 체계적으로 관리하고,\n'
@@ -117,57 +161,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
                             style: AppStyles.subtitle,
                             textAlign: TextAlign.center,
                           ),
-                          SizedBox(height: 32),
-                          // Google 로그인 버튼
+                          const SizedBox(height: 32),
                           _isLoading
-                              ? CircularProgressIndicator(
+                              ? const CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(AppStyles.primaryColor),
                           )
-                              : MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTapDown: (_) {
-                                setState(() {
-                                  _isLoading = true;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: Duration(milliseconds: 300),
-                                decoration: BoxDecoration(
-                                  gradient: AppStyles.buttonGradient,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    AppStyles.neonGlowShadow,
-                                  ],
-                                ),
-                                child: ElevatedButton.icon(
-                                  icon: Icon(
-                                    Icons.login,
-                                    color: AppStyles.textLight,
-                                    shadows: [
-                                      Shadow(
-                                        color: AppStyles.accentGlow,
-                                        blurRadius: 4,
-                                      ),
-                                    ],
-                                  ),
-                                  label: Text(
-                                    'Google로 로그인',
-                                    style: AppStyles.buttonText,
-                                  ),
-                                  style: AppStyles.googleButtonStyle.copyWith(
-                                    backgroundColor: MaterialStateProperty.all(Colors.transparent),
-                                    overlayColor: MaterialStateProperty.all(AppStyles.neonGlow.withOpacity(0.2)),
-                                  ),
-                                  onPressed: () async {
-                                    await ref.read(authServiceProvider.notifier).signInWithGoogle(context);
-                                    setState(() {
-                                      _isLoading = false;
-                                    });
-                                  },
-                                ),
+                              : _isInitialized
+                              ? ElevatedButton(
+                            onPressed: _handleSignIn,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppStyles.primaryColor,
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                              shadowColor: AppStyles.neonGlow,
+                            ),
+                            child: const Text(
+                              'Google로 로그인',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
+                          )
+                              : const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppStyles.primaryColor),
                           ),
                         ],
                       ),
@@ -180,35 +201,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with TickerProviderSt
         ],
       ),
     );
-  }
-}
-
-// 반짝이는 별 효과를 위한 CustomPainter
-class SparkleBackgroundPainter extends CustomPainter {
-  final double animationValue;
-
-  SparkleBackgroundPainter(this.animationValue);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final random = Random();
-    final paint = Paint();
-
-    // 별 50개 생성
-    for (int i = 0; i < 50; i++) {
-      final x = random.nextDouble() * size.width;
-      final y = random.nextDouble() * size.height;
-      final radius = random.nextDouble() * 2 + 1;
-      final opacity = (animationValue * random.nextDouble()).clamp(0.3, 1.0);
-
-      paint.color = AppStyles.sparkleColors[random.nextInt(AppStyles.sparkleColors.length)]
-          .withOpacity(opacity);
-      canvas.drawCircle(Offset(x, y), radius, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant SparkleBackgroundPainter oldDelegate) {
-    return oldDelegate.animationValue != animationValue;
   }
 }

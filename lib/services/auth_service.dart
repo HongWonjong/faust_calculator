@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -17,102 +18,89 @@ class AuthService extends StateNotifier<User?> {
 
   AuthService(this._ref)
       : _googleSignIn = GoogleSignIn(
-    clientId: '174839303003-ntfa4g52f5f6601oq7p1apa3dem9mg62.apps.googleusercontent.com',
+    clientId: '174839303003-huddi6sn9b16o8cs2l8ed3m6e0uomc7l.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   ),
         super(FirebaseAuth.instance.currentUser);
 
-  Future<void> signInWithGoogle(BuildContext context) async {
-    try {
-      log('Initializing Google Sign-In with clientId: ${_googleSignIn.clientId}');
-      if (_googleSignIn.clientId == null || _googleSignIn.clientId!.isEmpty) {
-        throw Exception('Google Sign-In 클라이언트 ID가 설정되지 않았습니다.');
-      }
-
-      final isSignedIn = await _googleSignIn.isSignedIn();
-      GoogleSignInAccount? googleUser;
-
-      if (isSignedIn) {
-        googleUser = await _googleSignIn.signInSilently();
-        log('기존 계정으로 자동 로그인 시도: user=${googleUser?.email}');
-      } else {
-        googleUser = await _googleSignIn.signIn();
-        log('로그인 창 표시됨: user=${googleUser?.email}');
-      }
-
-      if (googleUser == null) {
-        log('사용자가 로그인을 취소했거나 실패함');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('로그인이 취소되었습니다.')),
-        );
-        return;
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final String? accessToken = googleAuth.accessToken;
-      final String? idToken = googleAuth.idToken;
-
-      if (accessToken == null || idToken == null) {
-        log('Google auth tokens are null: accessToken=$accessToken, idToken=$idToken');
-        log('User details: email=${googleUser.email}, displayName=${googleUser.displayName}, id=${googleUser.id}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Google 인증 토큰을 가져오지 못했습니다.\n'
-                  '1. 로그인 팝업에서 모든 권한에 동의했는지 확인하세요.\n'
-                  '2. 네트워크 연결 상태를 점검하세요.\n'
-                  '3. 다시 시도해 보세요.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: accessToken,
-        idToken: idToken,
+  Future<void> signInWithGoogle(BuildContext context, GoogleSignInAccount? user) async {
+    if (user == null) {
+      log('Google Sign-In: User is null');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Google Sign-In에서 사용자 정보를 가져오지 못했습니다.')),
       );
-      try {
-        await _auth.signInWithCredential(credential);
-        state = _auth.currentUser;
-        log('Firebase 로그인 성공: ${state?.email}, uid=${state?.uid}');
-      } catch (firebaseError) {
-        log('Firebase 인증 실패: $firebaseError');
+      return;
+    }
+
+    try {
+      log('Attempting to get idToken for user: ${user.email}');
+      final auth = await user.authentication;
+      final idToken = auth.idToken;
+
+      if (idToken == null) {
+        log('Google Sign-In: idToken is null');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Firebase 인증 실패: $firebaseError')),
+          const SnackBar(content: Text('Google Sign-In에서 idToken을 가져오지 못했습니다.')),
         );
         return;
       }
 
-      // Firestore에서 사용자 데이터 확인
-      final uid = state!.uid;
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final nickname = doc.data()?['username'] as String?;
+      log('Attempting Firebase sign-in with idToken');
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      await _auth.signInWithCredential(credential);
+      state = _auth.currentUser;
+      log('Firebase sign-in successful: ${state?.email}, uid=${state?.uid}');
 
-      if (doc.exists && nickname != null && nickname.isNotEmpty) {
+      final uid = state!.uid;
+      var doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      // 문서가 없으면 생성
+      if (!doc.exists) {
+        final username = user.displayName ?? user.email?.split('@')[0] ?? 'Anonymous';
+        log('User document does not exist for uid: $uid, creating new document with username: $username');
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'username': username,
+          'email': user.email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        log('Created new user document for uid: $uid');
+        // 문서 생성 후 재조회
+        doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      }
+
+      if (doc.exists) {
+        final nickname = doc.data()?['username'] as String?;
+        log('User document exists for uid: $uid, username: $nickname');
         _ref.invalidate(storyViewModelProvider);
         Navigator.pushReplacementNamed(context, '/main_dashboard');
       } else {
+        log('User document still does not exist after creation for uid: $uid');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('사용자 등록이 필요합니다. 관리자에게 문의하세요.')),
+          const SnackBar(content: Text('사용자 등록에 실패했습니다. 관리자에게 문의하세요.')),
         );
       }
     } catch (e, stackTrace) {
-      log('로그인 실패: $e\n$stackTrace');
+      log('Firebase sign-in failed: $e\n$stackTrace');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('로그인 실패: $e')),
       );
+      if (e.toString().contains('popup')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('브라우저의 팝업 차단을 해제하고 다시 시도하세요.')),
+        );
+      }
     }
   }
 
   Future<void> signOut() async {
     try {
-      await _googleSignIn.disconnect();
-      log('Google Sign-In 세션 해지');
-    } catch (_) {}
-    await _googleSignIn.signOut();
-    await _auth.signOut();
-    state = null;
-    log('로그아웃 완료');
+      await _googleSignIn.signOut();
+      log('Google Sign-In signed out');
+      await _auth.signOut();
+      state = null;
+      log('Sign-out completed');
+    } catch (e) {
+      log('Sign-out failed: $e');
+    }
   }
 }
