@@ -8,7 +8,7 @@ class CollaborationService {
     await _firestore
         .collection('users')
         .doc(userId)
-        .collection('Stories')
+        .collection('stories')
         .doc(storyId)
         .update({
       'collaborators': FieldValue.arrayUnion([collaboratorId])
@@ -19,7 +19,7 @@ class CollaborationService {
     return _firestore
         .collection('users')
         .doc(userId)
-        .collection('Stories')
+        .collection('stories')
         .doc(storyId)
         .snapshots()
         .map((snapshot) =>

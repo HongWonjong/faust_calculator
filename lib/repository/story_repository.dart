@@ -10,14 +10,14 @@ class StoryRepository {
 
   Stream<List<Story>> getStories(String userId) {
     return _firestoreService
-        .collectionStream('users/$userId/Stories')
+        .collectionStream('users/$userId/stories')
         .map((snapshot) =>
         snapshot.docs.map((doc) => Story.fromFirestore(doc)).toList());
   }
 
   Future<void> addStory(String userId, Story story) async {
     await _firestoreService.setDocument(
-      'users/$userId/Stories',
+      'users/$userId/stories',
       story.id,
       story.toFirestore(),
     );
@@ -25,14 +25,14 @@ class StoryRepository {
 
   Stream<List<Part>> getParts(String userId, String storyId) {
     return _firestoreService
-        .collectionStream('users/$userId/Stories/$storyId/Parts')
+        .collectionStream('users/$userId/stories/$storyId/parts')
         .map((snapshot) =>
         snapshot.docs.map((doc) => Part.fromFirestore(doc)).toList());
   }
 
   Future<void> addPart(String userId, String storyId, Part part) async {
     await _firestoreService.setDocument(
-      'users/$userId/Stories/$storyId/Parts',
+      'users/$userId/stories/$storyId/parts',
       part.id,
       part.toFirestore(),
     );
